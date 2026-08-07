@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+client/node_modules/
+server/node_modules/
+
+# Environment variables
+.env
+server/.env
+
+# Uploaded documents and screenshots
+uploads/
+server/uploads/
+
+# Build and system files
+dist/
+build/
+.DS_Store
