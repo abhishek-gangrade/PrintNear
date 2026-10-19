@@ -24,8 +24,8 @@ PrintNear is a full-stack MERN (MongoDB, Express, React, Node.js) web applicatio
 
 ## 🛠️ Tech Stack
 
-* **Frontend:** React, Tailwind CSS, React-Leaflet, Socket.IO Client, QRCode React
-* **Backend:** Node.js, Express.js, MongoDB, Mongoose, Socket.IO, Multer, Node-Cron, BcryptJS, JWT
+* **Frontend:** React, Tailwind CSS, Socket.IO Client, React
+* **Backend:** Node.js, Express.js, MongoDB, Mongoose, Socket.IO, BcryptJS, JWT
 
 ---
 
