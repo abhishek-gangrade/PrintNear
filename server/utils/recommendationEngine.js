@@ -165,7 +165,7 @@ export const recommendShops = async ({
       estimatedMinutes: item.estimatedMinutes,
       confidenceInterval: item.confidenceInterval,
       recommendationScore: compositeScore,
-      highlightBadges: highlightBadges.length > 0 ? highlightBadges : ['✓ Verified Campus Hub'],
+      highlightBadges: highlightBadges.length > 0 ? highlightBadges : ['✓ Verified Partner Hub'],
       factorScores: {
         distanceScore: Math.round(normDist * 100),
         priceScore: Math.round(normPrice * 100),

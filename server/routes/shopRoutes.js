@@ -18,7 +18,7 @@ router.get('/my-shop', protect, allowRoles('shopkeeper'), async (req, res, next)
         email: user.email,
         phone: user.phone || 'Not Provided',
         shopName: `${user.name}'s Print Hub`,
-        address: 'Local Campus Area',
+        address: 'Local Area',
         pricing: {
           bwPerPage: 3,
           colorPerPage: 10,

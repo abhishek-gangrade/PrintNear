@@ -192,8 +192,8 @@ export default function CustomerOrders({ user, onNavigateToShops }) {
           <div className="space-y-4">
             {orders.map((order) => {
               const shopInfo = order.shopId || {};
-              const shopTitle = shopInfo.shopName || 'Campus Print Hub';
-              const shopLoc = shopInfo.address || 'Local Campus Store';
+              const shopTitle = shopInfo.shopName || 'Local Print Shop';
+              const shopLoc = shopInfo.address || 'Nearby Location';
               const canCancel = ['Pending', 'Quoted', 'Accepted', 'Queued'].includes(order.status);
 
               return (

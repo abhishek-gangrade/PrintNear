@@ -196,7 +196,7 @@ export default function Auth({ initialMode = 'signup', onAuthSuccess }) {
                 ? `Enter the 6-digit code sent to ${email}`
                 : authStep === 'welcome'
                 ? 'Your account has been verified and registered'
-                : 'Join PrintNear for fast, on-demand campus printing'}
+                : 'Join PrintNear for fast, on-demand cloud printing'}
             </p>
           </div>
 
@@ -342,7 +342,7 @@ export default function Auth({ initialMode = 'signup', onAuthSuccess }) {
                         : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
-                    🎓 Student
+                    🎓 Customer
                   </button>
                   <button
                     type="button"
@@ -429,7 +429,7 @@ export default function Auth({ initialMode = 'signup', onAuthSuccess }) {
                         required
                         value={address}
                         onChange={(e) => setAddress(e.target.value)}
-                        placeholder="e.g. Near Gate 1, Campus Road"
+                        placeholder="e.g. Near Gate 1, Main Road"
                         className="w-full border border-slate-200 rounded-xl p-3 font-semibold text-slate-800 focus:outline-none focus:border-emerald-600 transition"
                       />
                     </div>

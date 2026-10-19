@@ -18,7 +18,7 @@ export default function Header({ user, currentView, onNavigate, onLogout }) {
               Print<span className="text-blue-600">Near</span>
             </span>
             <span className="text-[10px] text-slate-400 font-semibold tracking-wider uppercase mt-0.5">
-              Campus & Local Hubs
+              Hyperlocal Cloud Printing
             </span>
           </div>
         </button>

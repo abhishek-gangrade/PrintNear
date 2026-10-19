@@ -81,7 +81,7 @@ export default function Profile({ user, onUpdateUser }) {
             <div>
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 border border-blue-200/80 text-[10px] font-bold uppercase tracking-wider text-blue-700 mb-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse" />
-                {user?.role === 'shopkeeper' ? 'Verified Vendor Hub' : 'Campus Customer Account'}
+                {user?.role === 'shopkeeper' ? 'Verified Vendor Hub' : 'Verified Customer Account'}
               </div>
               <h1 className="text-2xl font-black text-slate-900 tracking-tight">{name || 'Your Account'}</h1>
               <p className="text-xs text-slate-500 mt-0.5">{email || 'member@printnear.com'}</p>
@@ -186,7 +186,7 @@ export default function Profile({ user, onUpdateUser }) {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@campus.edu"
+                placeholder="you@example.com"
                 required
                 className="w-full bg-slate-50/70 border border-slate-200 rounded-2xl px-4 py-3 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-600 focus:bg-white transition-all shadow-xs font-mono"
               />

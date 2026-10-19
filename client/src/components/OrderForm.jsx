@@ -75,10 +75,10 @@ export default function OrderForm({ shop, user }) {
   const handleApplyCoupon = (e) => {
     e.preventDefault();
     const code = couponCode.trim().toUpperCase();
-    if (['CAMPUS10', 'PRINT5', 'PRINTANIA20'].includes(code)) {
+    if (['PRINT10', 'CAMPUS10', 'PRINT5', 'PRINTANIA20'].includes(code)) {
       setCouponCode(code);
     } else {
-      setCouponMsg({ text: 'Invalid coupon. Try CAMPUS10 or PRINT5.', type: 'error' });
+      setCouponMsg({ text: 'Invalid coupon. Try PRINT10 or PRINT5.', type: 'error' });
     }
   };
 
@@ -424,7 +424,7 @@ export default function OrderForm({ shop, user }) {
               type="text"
               value={couponCode}
               onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-              placeholder="e.g. CAMPUS10, PRINT5"
+              placeholder="e.g. PRINT10, PRINT5"
               className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800"
             />
             <button

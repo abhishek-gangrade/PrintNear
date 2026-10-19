@@ -4,7 +4,8 @@
  */
 
 export const COUPON_CATALOG = {
-  CAMPUS10: { type: 'percent', value: 10, minOrder: 20, description: '10% off on campus orders above ₹20' },
+  PRINT10: { type: 'percent', value: 10, minOrder: 20, description: '10% off on print orders above ₹20' },
+  CAMPUS10: { type: 'percent', value: 10, minOrder: 20, description: '10% off on orders above ₹20' },
   PRINT5: { type: 'flat', value: 5, minOrder: 15, description: 'Flat ₹5 off on orders above ₹15' },
   PRINTANIA20: { type: 'percent', value: 20, minOrder: 50, description: '20% off welcome discount above ₹50' }
 };

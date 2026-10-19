@@ -294,7 +294,7 @@ export default function ShopList({ onSelectShop, selectedShop }) {
           <div className="bg-white rounded-3xl w-full max-w-6xl h-[85vh] flex flex-col overflow-hidden shadow-2xl relative border border-slate-200">
             <div className="px-6 py-4 border-b border-slate-200 bg-white flex items-center justify-between">
               <div>
-                <h3 className="text-base font-black text-slate-900">Campus Map Explorer</h3>
+                <h3 className="text-base font-black text-slate-900">Live Area Map Explorer</h3>
                 <p className="text-xs text-slate-500">Pan and inspect nearby print shops</p>
               </div>
               <button

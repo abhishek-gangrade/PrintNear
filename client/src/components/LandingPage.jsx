@@ -15,7 +15,7 @@ export default function LandingPage({ onGetStarted }) {
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-blue-50 border border-blue-200/80 shadow-xs mb-8">
             <span className="flex h-2 w-2 rounded-full bg-blue-600 animate-ping" />
             <span className="text-xs font-bold tracking-wide uppercase text-blue-700">
-              ⚡ Lightning-Fast Campus Printing
+              ⚡ Smart On-Demand Cloud Printing
             </span>
           </div>
 
@@ -29,7 +29,7 @@ export default function LandingPage({ onGetStarted }) {
 
           {/* Subtitle */}
           <p className="mt-6 text-base md:text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed">
-            Upload files online, connect with nearby campus print hubs, track queue statuses in real time, and pick up securely via one-time PIN.
+            Upload documents online, connect with nearby verified print shops, track queue statuses in real time, and pick up securely via one-time PIN.
           </p>
 
           {/* CTA Actions */}

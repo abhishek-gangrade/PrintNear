@@ -125,7 +125,7 @@ router.post('/verify-otp', async (req, res, next) => {
         email: user.email,
         phone: user.phone || 'Not Provided',
         shopName: shopName || `${user.name}'s Print Hub`,
-        address: address || 'Local Campus Area',
+        address: address || 'Local Area',
         upiId: upiId || '',
         pricing: { bwPerPage: 3, colorPerPage: 10 }
       });
@@ -218,7 +218,7 @@ router.post('/register', async (req, res, next) => {
         email: user.email,
         phone: user.phone || 'Not Provided',
         shopName: shopName?.trim() || `${user.name}'s Print Hub`,
-        address: address?.trim() || 'Local Campus Area',
+        address: address?.trim() || 'Local Area',
         upiId: upiId?.trim() || '',
         pricing: { bwPerPage: 3, colorPerPage: 10 }
       });
