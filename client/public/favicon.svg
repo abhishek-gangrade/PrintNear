@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <!-- Blue Badge Container -->
+  <rect x="32" y="32" width="448" height="448" rx="112" fill="#2563EB" />
+
+  <!-- White 'P' Icon -->
+  <path d="M160 120 L272 120 C334 120 380 156 380 216 C380 276 334 312 272 312 L228 312 L228 392 C228 403 219 412 208 412 L180 412 C169 412 160 403 160 392 L160 120 Z M228 180 L228 252 L268 252 C298 252 316 238 316 216 C316 194 298 180 268 180 L228 180 Z" fill="#FFFFFF" />
+
+  <!-- Print Accent Dot -->
+  <circle cx="360" cy="376" r="28" fill="#60A5FA" />
+</svg>

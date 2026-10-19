@@ -1,47 +1,75 @@
-import fs from 'fs';
-import path from 'path';
 import cron from 'node-cron';
 import Order from '../models/Order.js';
+import { deleteDocument } from './fileStorage.js';
 
-export const deleteFileFromDisk = (fileUrl) => {
-  if (!fileUrl) return;
-  try {
-    const relativePath = fileUrl.startsWith('/') ? fileUrl.slice(1) : fileUrl;
-    const fullPath = path.join(process.cwd(), relativePath);
-    if (fs.existsSync(fullPath)) {
-      fs.unlinkSync(fullPath);
-      console.log(`[Privacy Auto-Delete] Deleted: ${fullPath}`);
+export const runRetentionCleanup = async () => {
+  const now = new Date();
+  const fallbackCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+  // Find orders where either the explicit retention deadline has elapsed,
+  // or a completed/cancelled order has exceeded the fallback 24h cutoff.
+  const expiredOrders = await Order.find({
+    deletionStatus: { $ne: 'Deleted' },
+    $or: [
+      { documentRetentionExpiresAt: { $lte: now } },
+      {
+        status: { $in: ['PickedUp', 'Cancelled', 'Rejected'] },
+        updatedAt: { $lt: fallbackCutoff }
+      }
+    ],
+    $and: [
+      { $or: [{ filePublicId: { $ne: '' } }, { filePath: { $ne: '' } }] }
+    ]
+  }).limit(100);
+
+  let successCount = 0;
+  let failureCount = 0;
+
+  for (const order of expiredOrders) {
+    try {
+      const res = await deleteDocument(order);
+      if (res.success) {
+        order.filePublicId = '';
+        order.filePath = '';
+        order.deletionStatus = 'Deleted';
+        order.documentDeletedAt = new Date();
+        order.statusHistory.push({
+          status: order.status,
+          changedAt: new Date(),
+          changedBy: 'PrivacyRetentionWorker',
+          note: 'Stored document permanently deleted per privacy retention policy'
+        });
+        await order.save();
+        successCount++;
+      } else {
+        order.deletionStatus = 'Failed';
+        order.deletionRetryCount = (order.deletionRetryCount || 0) + 1;
+        await order.save();
+        failureCount++;
+      }
+    } catch (err) {
+      console.error(`[Retention Cleanup] Failed to delete file for order ${order._id}:`, err.message);
+      order.deletionStatus = 'Failed';
+      order.deletionRetryCount = (order.deletionRetryCount || 0) + 1;
+      await order.save();
+      failureCount++;
     }
-  } catch (err) {
-    console.error(`[Auto-Delete Error] Could not delete file ${fileUrl}:`, err.message);
   }
+
+  if (expiredOrders.length > 0) {
+    console.log(`[Privacy Retention] Processed ${expiredOrders.length} expired documents: ${successCount} deleted, ${failureCount} failed.`);
+  }
+
+  return { processed: expiredOrders.length, successCount, failureCount };
 };
 
 export const initFileCleanupJob = () => {
-  cron.schedule('0 0 * * *', async () => {
+  // Runs every 15 minutes to guarantee timely deletion within privacy SLAs
+  cron.schedule('*/15 * * * *', async () => {
     try {
-      const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
-      const oldOrders = await Order.find({
-        status: { $in: ['COMPLETED', 'CANCELLED'] },
-        updatedAt: { $lt: cutoff }
-      });
-
-      let cleanedCount = 0;
-      for (const ord of oldOrders) {
-        if (ord.fileUrl) {
-          deleteFileFromDisk(ord.fileUrl);
-          ord.fileUrl = '';
-        }
-        if (ord.paymentScreenshotUrl) {
-          deleteFileFromDisk(ord.paymentScreenshotUrl);
-          ord.paymentScreenshotUrl = '';
-        }
-        await ord.save();
-        cleanedCount++;
-      }
-      console.log(`[Midnight Privacy Job] Cleaned up files for ${cleanedCount} expired orders.`);
-    } catch (err) {
-      console.error('[Midnight Privacy Job Error]:', err.message);
+      await runRetentionCleanup();
+    } catch (error) {
+      console.error('[Privacy Cleanup Job Error]', error.message);
     }
   });
 };

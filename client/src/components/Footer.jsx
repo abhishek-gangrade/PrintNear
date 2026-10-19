@@ -26,7 +26,6 @@ export default function Footer() {
         <div>
           <h4 className="text-white font-semibold mb-3">Contact</h4>
           <p className="text-sm">Support: support@printnear.com</p>
-          <p className="text-sm mt-1">Location: Campus Gate 1, Indore</p>
         </div>
       </div>
       <div className="max-w-7xl mx-auto px-4 mt-8 pt-6 border-t border-gray-800 text-center text-xs text-gray-500">

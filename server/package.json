@@ -1,12 +1,14 @@
 {
   "name": "printnear-server",
   "version": "1.0.0",
-  "description": "",
+  "description": "Production-oriented API for PrintNear hyper-local document printing",
   "main": "index.js",
   "type": "module",
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon index.js"
+    "dev": "nodemon index.js",
+    "seed": "node seed.js",
+    "test": "node --test tests/**/*.test.js"
   },
   "keywords": [],
   "author": "",
@@ -18,10 +20,12 @@
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
+    "jwt-simple": "^0.5.6",
     "lucide-react": "^1.28.0",
     "mongoose": "^9.9.1",
     "multer": "^2.2.0",
     "node-cron": "^4.6.0",
+    "nodemailer": "^9.0.5",
     "react-router-dom": "^7.18.2",
     "socket.io": "^4.8.3"
   },

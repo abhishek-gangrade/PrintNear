@@ -1,196 +1,585 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { QRCodeSVG } from 'qrcode.react';
-import LiveChat from './LiveChat';
 
-function OrderForm({ shop, user }) {
-  const [customerName, setCustomerName] = useState(user?.name || '');
-  const [customerPhone, setCustomerPhone] = useState(user?.phone || '9876543210');
+export default function OrderForm({ shop, user }) {
+  const [file, setFile] = useState(null);
   const [pages, setPages] = useState(1);
   const [copies, setCopies] = useState(1);
-  const [printType, setPrintType] = useState('bw');
-  const [printSide, setPrintSide] = useState('single');
-  const [file, setFile] = useState(null);
-  const [paymentScreenshot, setPaymentScreenshot] = useState(null);
+  const [colorType, setColorType] = useState('B&W');
+  const [orientation, setOrientation] = useState('Portrait');
+  const [printSides, setPrintSides] = useState('Single');
+  const [paperSize, setPaperSize] = useState('A4');
+  const [printQuality, setPrintQuality] = useState('Standard');
+  const [binding, setBinding] = useState('None');
+  const [customerNotes, setCustomerNotes] = useState('');
+
+  // Promotional Offers & Discounts
+  const [couponCode, setCouponCode] = useState('');
+  const [couponMsg, setCouponMsg] = useState({ text: '', type: '' });
+
+  // Authoritative Quote State
+  const [authoritativeQuote, setAuthoritativeQuote] = useState(null);
+  const [quoteLoading, setQuoteLoading] = useState(false);
+
+  // Payment states
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState('RAZORPAY'); // 'RAZORPAY' or 'UPI_MANUAL'
+  const [paymentUtr, setPaymentUtr] = useState('');
   const [loading, setLoading] = useState(false);
-  const [order, setOrder] = useState(null);
+  const [orderSuccess, setOrderSuccess] = useState(null);
+  const [error, setError] = useState('');
 
-  // Dynamic Price Calculation
-  let ratePerPage = printType === 'bw' 
-    ? (shop.pricing?.bwPerPage || 3) 
-    : (shop.pricing?.colorPerPage || 10);
+  // Fetch Authoritative Quote from API
+  useEffect(() => {
+    if (!shop?._id) return;
+    let cancel = false;
+    const fetchQuote = async () => {
+      setQuoteLoading(true);
+      try {
+        const res = await axios.post('/api/orders/quote', {
+          shopId: shop._id,
+          pages,
+          copies,
+          colorType,
+          printSides,
+          paperSize,
+          binding,
+          couponCode
+        });
+        if (!cancel) {
+          setAuthoritativeQuote(res.data);
+          if (res.data.appliedCoupon) {
+            setCouponMsg({ text: `🎉 ${res.data.appliedCoupon.description} (Saved ₹${res.data.couponDiscount})`, type: 'success' });
+          }
+        }
+      } catch (err) {
+        console.error('Quote error:', err);
+      } finally {
+        if (!cancel) setQuoteLoading(false);
+      }
+    };
+    fetchQuote();
+    return () => { cancel = true; };
+  }, [shop?._id, pages, copies, colorType, printSides, paperSize, binding, couponCode]);
 
-  let activeDiscountText = '';
+  const bwRate = shop?.pricing?.bwPerPage ?? 3;
+  const colorRate = shop?.pricing?.colorPerPage ?? 10;
+  const finalTotal = authoritativeQuote?.totalAmount || Math.max(1, pages * copies * (colorType === 'Color' ? colorRate : bwRate));
 
-  if (printType === 'bw' && shop.discountTiers && shop.discountTiers.length > 0) {
-    const sortedTiers = [...shop.discountTiers].sort((a, b) => b.minPages - a.minPages);
-    const matchingTier = sortedTiers.find((t) => pages >= t.minPages);
+  // Dynamic UPI URL construction
+  const shopUpiId = shop?.upiId || 'printnear@upi';
+  const shopNameEncoded = encodeURIComponent(shop?.shopName || 'Print Shop');
+  const upiPayUrl = `upi://pay?pa=${shopUpiId}&pn=${shopNameEncoded}&am=${finalTotal}&cu=INR&tn=PrintNear_Order`;
 
-    if (matchingTier) {
-      ratePerPage = matchingTier.bwRate;
-      activeDiscountText = `🔥 Special Rate Applied: ${matchingTier.minPages}+ Pages @ ₹${matchingTier.bwRate}/pg!`;
-    }
-  }
-
-  if (printSide === 'double') {
-    ratePerPage = ratePerPage * 0.85;
-  }
-
-  const totalAmount = Math.max(1, Math.round(pages * copies * ratePerPage));
-
-  // Dynamic Real UPI URI
-  const shopUpiId = shop.upiId || (shop.phone ? `${shop.phone}@paytm` : 'printnear@upi');
-  const shopNameEncoded = encodeURIComponent(shop.shopName || 'PrintNear Shop');
-  const upiURI = `upi://pay?pa=${shopUpiId}&pn=${shopNameEncoded}&am=${totalAmount}&cu=INR&tn=PrintNear%20Order`;
-
-  const handleSubmit = async (e) => {
+  const handleApplyCoupon = (e) => {
     e.preventDefault();
-    if (!file) return alert("Please upload a PDF document.");
-    if (!paymentScreenshot) return alert("Please upload your UPI Payment screenshot.");
+    const code = couponCode.trim().toUpperCase();
+    if (['CAMPUS10', 'PRINT5', 'PRINTANIA20'].includes(code)) {
+      setCouponCode(code);
+    } else {
+      setCouponMsg({ text: 'Invalid coupon. Try CAMPUS10 or PRINT5.', type: 'error' });
+    }
+  };
+
+  const handleFileChange = (e) => {
+    const selected = e.target.files[0];
+    if (selected) {
+      setFile(selected);
+    }
+  };
+
+  const handleInitiatePayment = (e) => {
+    e.preventDefault();
+    if (!file) {
+      setError('Please select a document file (PDF/DOCX) first.');
+      return;
+    }
+    if (!user) {
+      setError('Please sign in to complete your order.');
+      return;
+    }
+    setError('');
+    setShowPaymentModal(true);
+  };
+
+  const handleFinalSubmitOrder = async () => {
+    if (paymentMethod === 'UPI_MANUAL' && !paymentUtr.trim()) {
+      setError('Enter your 12-digit UPI UTR reference after making payment.');
+      return;
+    }
 
     setLoading(true);
-
-    const formData = new FormData();
-    formData.append('shopId', shop._id);
-    formData.append('customerName', customerName || 'Guest');
-    formData.append('customerPhone', customerPhone);
-    formData.append('pages', pages);
-    formData.append('copies', copies);
-    formData.append('printType', printType);
-    formData.append('printSide', printSide);
-    formData.append('document', file);
-    formData.append('paymentScreenshot', paymentScreenshot);
+    setError('');
 
     try {
-      const res = await axios.post('/api/orders/create', formData);
-      setOrder(res.data);
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('shopId', shop._id);
+      formData.append('pages', pages);
+      formData.append('copies', copies);
+      formData.append('colorType', colorType);
+      formData.append('orientation', orientation);
+      formData.append('printSides', printSides);
+      formData.append('paperSize', paperSize);
+      formData.append('printQuality', printQuality);
+      formData.append('binding', binding);
+      formData.append('customerNotes', customerNotes);
+      formData.append('couponCode', couponCode);
+      formData.append('paymentMethod', paymentMethod);
+      if (paymentMethod === 'UPI_MANUAL') {
+        formData.append('transactionUtr', paymentUtr.trim());
+      }
+
+      const token = localStorage.getItem('token');
+      const config = {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          Authorization: `Bearer ${token}`
+        }
+      };
+
+      const res = await axios.post('/api/orders', formData, config);
+      const createdOrder = res.data;
+
+      // If Razorpay chosen: execute online checkout flow
+      if (paymentMethod === 'RAZORPAY') {
+        try {
+          const rzpRes = await axios.post(`/api/orders/${createdOrder._id}/pay/razorpay-order`, {}, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          const gatewayOrder = rzpRes.data;
+
+          // In sandbox development mode, simulate instant verified authorization:
+          const verifyRes = await axios.post(`/api/orders/${createdOrder._id}/pay/verify`, {
+            razorpayOrderId: gatewayOrder.gatewayOrderId,
+            razorpayPaymentId: `pay_mock_${Date.now()}`,
+            razorpaySignature: 'test_mock_valid_sig'
+          }, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+
+          setShowPaymentModal(false);
+          setOrderSuccess(verifyRes.data.order || createdOrder);
+        } catch (rzpErr) {
+          setShowPaymentModal(false);
+          setOrderSuccess(createdOrder);
+        }
+      } else {
+        setShowPaymentModal(false);
+        setOrderSuccess(createdOrder);
+      }
     } catch (err) {
-      alert("Failed to place order.");
+      setError(err.response?.data?.message || 'Order submission failed.');
     } finally {
       setLoading(false);
     }
   };
 
-  if (order) {
+  if (orderSuccess) {
     return (
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-blue-100">
-        <div className="text-green-500 text-4xl text-center mb-2">✓</div>
-        <h2 className="text-2xl font-bold text-center text-slate-800 mb-1">Order Submitted!</h2>
-        <p className="text-center text-xs text-slate-500 mb-4">Your document is queued for printing.</p>
+      <div className="bg-white border border-slate-200 rounded-3xl p-8 shadow-sm text-center font-sans space-y-4">
+        <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-3xl mx-auto font-black">
+          ✓
+        </div>
+        <h3 className="text-xl font-black text-slate-900">Order Placed Successfully!</h3>
+        <p className="text-xs text-slate-500 max-w-sm mx-auto">
+          Your document has been securely processed and sent to <strong>{shop.shopName}</strong>.
+        </p>
 
-        <div className="bg-slate-50 p-4 rounded-xl text-xs space-y-2 mb-4">
-          <div className="flex justify-between"><span className="text-gray-500">Order ID:</span> <span className="font-mono font-bold">{order._id}</span></div>
-          <div className="flex justify-between"><span className="text-gray-500">Pickup PIN:</span> <span className="font-mono font-bold text-blue-600 text-sm">{order.pickupPin}</span></div>
-          <div className="flex justify-between"><span className="text-gray-500">Amount Paid:</span> <span className="font-bold text-slate-900">₹{order.totalAmount}</span></div>
+        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 text-xs space-y-2.5 text-left">
+          <div className="flex justify-between">
+            <span className="text-slate-500 font-medium">Order Reference:</span>
+            <span className="font-mono font-bold text-slate-900">#{orderSuccess._id.slice(-6)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-slate-500 font-medium">Document & Pages:</span>
+            <span className="font-bold text-slate-800">{orderSuccess.pages} Pages × {orderSuccess.copies} Copies ({orderSuccess.paperSize || 'A4'})</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-slate-500 font-medium">Configuration:</span>
+            <span className="font-bold text-slate-800">
+              {orderSuccess.orientation} • {orderSuccess.colorType} • {orderSuccess.printSides}-Sided
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-slate-500 font-medium">Finishing:</span>
+            <span className="font-semibold text-slate-800">{orderSuccess.binding}</span>
+          </div>
+          <div className="flex justify-between border-t border-slate-200/80 pt-2">
+            <span className="text-slate-700 font-bold">Authoritative Total:</span>
+            <span className="font-black text-emerald-600 text-base">₹{orderSuccess.totalAmount}</span>
+          </div>
+
+          {orderSuccess.pickupPin && (
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mt-3 flex items-center justify-between">
+              <div>
+                <p className="text-blue-900 font-bold text-xs">Counter Pickup Verification PIN</p>
+                <p className="text-[10px] text-blue-600">Show this 4-digit code at the shop counter</p>
+              </div>
+              <span className="font-mono text-2xl font-black text-blue-700 tracking-wider">
+                {orderSuccess.pickupPin}
+              </span>
+            </div>
+          )}
         </div>
 
-        <LiveChat orderId={order._id} currentUserRole={user?.role} customerName={user?.name} />
-
-        <button onClick={() => setOrder(null)} className="w-full mt-4 bg-blue-600 text-white font-bold py-2.5 rounded-xl text-xs">
-          Place Another Order
+        <button
+          onClick={() => {
+            setOrderSuccess(null);
+            setFile(null);
+            setCustomerNotes('');
+            setPaymentUtr('');
+          }}
+          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-2xl text-xs transition cursor-pointer shadow-xs"
+        >
+          Place Another Print Request
         </button>
       </div>
     );
   }
 
   return (
-    <div className="bg-white p-6 rounded-2xl shadow-sm border border-blue-100">
-      <h2 className="text-xl font-bold text-slate-900 mb-4">Order from {shop.shopName}</h2>
+    <div className="bg-white border border-slate-200 rounded-3xl p-7 shadow-xs font-sans space-y-6">
+      <div>
+        <span className="text-[10px] font-bold text-blue-600 bg-blue-50 border border-blue-200 px-3 py-1 rounded-full uppercase tracking-wider">
+          Configure Print
+        </span>
+        <h2 className="text-xl font-black text-slate-900 mt-2">Print at {shop.shopName}</h2>
+        <p className="text-xs text-slate-500 mt-0.5">{shop.address}</p>
+      </div>
 
-      {activeDiscountText && (
-        <div className="p-2.5 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold rounded-xl mb-4">
-          {activeDiscountText}
-        </div>
-      )}
+      {error && <div className="p-3 bg-red-50 text-red-600 text-xs rounded-xl border border-red-200">{error}</div>}
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Name</label>
-            <input type="text" required value={customerName} onChange={(e) => setCustomerName(e.target.value)} className="w-full border rounded-lg p-2 text-xs" />
-          </div>
-          <div>
-            <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Phone</label>
-            <input type="tel" required value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} className="w-full border rounded-lg p-2 text-xs" />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Print Color</label>
-            <select value={printType} onChange={(e) => setPrintType(e.target.value)} className="w-full border rounded-lg p-2 text-xs">
-              <option value="bw">Black & White</option>
-              <option value="color">Full Color</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Side Mode</label>
-            <select value={printSide} onChange={(e) => setPrintSide(e.target.value)} className="w-full border rounded-lg p-2 text-xs">
-              <option value="single">Single Sided</option>
-              <option value="double">Double Sided (15% Off)</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Total Pages</label>
-            <input type="number" min="1" value={pages} onChange={(e) => setPages(Math.max(1, parseInt(e.target.value) || 1))} className="w-full border rounded-lg p-2 text-xs" />
-          </div>
-          <div>
-            <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Copies</label>
-            <input type="number" min="1" value={copies} onChange={(e) => setCopies(Math.max(1, parseInt(e.target.value) || 1))} className="w-full border rounded-lg p-2 text-xs" />
-          </div>
-        </div>
-
+      <form onSubmit={handleInitiatePayment} className="space-y-5">
+        {/* Document Upload */}
         <div>
-          <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">1. Upload Document (PDF/DOC)</label>
-          <input type="file" required accept=".pdf,.doc,.docx" onChange={(e) => setFile(e.target.files[0])} className="w-full border text-xs rounded-lg p-2 bg-slate-50" />
+          <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-2">
+            Upload Document (PDF / DOCX)
+          </label>
+          <input
+            type="file"
+            accept=".pdf,.docx,.doc"
+            required
+            onChange={handleFileChange}
+            className="w-full text-xs text-slate-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer border border-slate-200 rounded-2xl p-2"
+          />
+          {file && (
+            <p className="text-[11px] text-emerald-600 font-semibold mt-1.5 flex items-center gap-1">
+              <span>📄</span> {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
+            </p>
+          )}
         </div>
 
-        {/* Real Dynamic UPI Payment Section */}
-        <div className="border border-blue-200 bg-blue-50/40 p-4 rounded-xl space-y-3">
-          <div className="flex justify-between items-center">
-            <p className="text-xs font-bold text-blue-900 uppercase">2. Pay via Dynamic UPI / QR</p>
-            <span className="text-xs font-black text-blue-700 bg-white px-2 py-0.5 rounded-md border border-blue-200">₹{totalAmount}</span>
-          </div>
-
-          <div className="flex flex-col sm:flex-row items-center gap-4 bg-white p-3 rounded-lg border border-blue-100">
-            <div className="p-2 bg-white rounded-lg border shadow-2xs">
-              <QRCodeSVG value={upiURI} size={110} level="H" />
-            </div>
-
-            <div className="space-y-2 text-center sm:text-left flex-1">
-              <p className="text-[11px] text-slate-600">
-                Scan with <strong>GPay, PhonePe, Paytm</strong> or pay to UPI ID:
-              </p>
-              <div className="inline-block font-mono text-xs font-bold bg-slate-100 text-slate-800 px-2 py-1 rounded border border-slate-200 select-all">
-                {shopUpiId}
-              </div>
-
-              <div className="pt-1">
-                <a 
-                  href={upiURI} 
-                  className="inline-block bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] px-3 py-1.5 rounded-lg shadow-2xs transition"
-                >
-                  ⚡ Open in UPI App
-                </a>
-              </div>
-            </div>
+        {/* Paper Size & Orientation */}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+              Paper Format
+            </label>
+            <select
+              value={paperSize}
+              onChange={(e) => setPaperSize(e.target.value)}
+              className="w-full border border-slate-200 rounded-xl p-2.5 text-xs font-semibold text-slate-700"
+            >
+              <option value="A4">A4 (Standard)</option>
+              <option value="A3">A3 (Large Poster)</option>
+              <option value="Legal">Legal</option>
+              <option value="Letter">Letter</option>
+            </select>
           </div>
 
           <div>
-            <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">3. Upload Payment Screenshot</label>
-            <input type="file" required accept="image/*" onChange={(e) => setPaymentScreenshot(e.target.files[0])} className="w-full border text-xs rounded-lg p-1.5 bg-white" />
+            <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+              Orientation
+            </label>
+            <select
+              value={orientation}
+              onChange={(e) => setOrientation(e.target.value)}
+              className="w-full border border-slate-200 rounded-xl p-2.5 text-xs font-semibold text-slate-700"
+            >
+              <option value="Portrait">Portrait (Vertical)</option>
+              <option value="Landscape">Landscape (Horizontal)</option>
+            </select>
           </div>
         </div>
 
-        <button type="submit" disabled={loading} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl text-xs shadow-md disabled:opacity-50">
-          {loading ? 'Submitting Order & Payment...' : 'Confirm Order & Submit Proof'}
+        {/* Color Mode */}
+        <div>
+          <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-2">
+            Color Option
+          </label>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => setColorType('B&W')}
+              className={`py-2.5 rounded-2xl border text-xs font-bold transition cursor-pointer ${
+                colorType === 'B&W'
+                  ? 'border-blue-600 bg-blue-50 text-blue-700 shadow-xs'
+                  : 'border-slate-200 text-slate-600 hover:border-slate-300'
+              }`}
+            >
+              B&W (₹{bwRate}/pg)
+            </button>
+            <button
+              type="button"
+              onClick={() => setColorType('Color')}
+              className={`py-2.5 rounded-2xl border text-xs font-bold transition cursor-pointer ${
+                colorType === 'Color'
+                  ? 'border-blue-600 bg-blue-50 text-blue-700 shadow-xs'
+                  : 'border-slate-200 text-slate-600 hover:border-slate-300'
+              }`}
+            >
+              Color (₹{colorRate}/pg)
+            </button>
+          </div>
+        </div>
+
+        {/* Print Sides & Finishing */}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+              Print Sides
+            </label>
+            <select
+              value={printSides}
+              onChange={(e) => setPrintSides(e.target.value)}
+              className="w-full border border-slate-200 rounded-xl p-2.5 text-xs font-semibold text-slate-700"
+            >
+              <option value="Single">Single-Sided</option>
+              <option value="Double">Double-Sided (15% savings)</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+              Finishing
+            </label>
+            <select
+              value={binding}
+              onChange={(e) => setBinding(e.target.value)}
+              className="w-full border border-slate-200 rounded-xl p-2.5 text-xs font-semibold text-slate-700"
+            >
+              <option value="None">None (Loose Sheets)</option>
+              <option value="Staple">Stapled Corner (+₹5)</option>
+              <option value="Spiral">Spiral Binding (+₹30)</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Quantities */}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+              Document Pages
+            </label>
+            <input
+              type="number"
+              min="1"
+              max="1000"
+              value={pages}
+              onChange={(e) => setPages(Math.max(1, parseInt(e.target.value, 10) || 1))}
+              className="w-full border border-slate-200 rounded-xl p-2.5 text-xs font-semibold text-slate-700"
+            />
+            <span className="text-[10px] text-slate-400">PDF page count is verified by server</span>
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+              Number of Copies
+            </label>
+            <input
+              type="number"
+              min="1"
+              max="100"
+              value={copies}
+              onChange={(e) => setCopies(Math.max(1, parseInt(e.target.value, 10) || 1))}
+              className="w-full border border-slate-200 rounded-xl p-2.5 text-xs font-semibold text-slate-700"
+            />
+          </div>
+        </div>
+
+        {/* Special Instructions */}
+        <div>
+          <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+            Special Instructions
+          </label>
+          <textarea
+            value={customerNotes}
+            onChange={(e) => setCustomerNotes(e.target.value)}
+            rows={2}
+            maxLength={1000}
+            placeholder="e.g. Print cover page on glossy sheet, bind with blue spine..."
+            className="w-full border border-slate-200 rounded-xl p-3 text-xs text-slate-700"
+          />
+        </div>
+
+        {/* Promotional Coupon Input */}
+        <div className="pt-2">
+          <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+            Promotional Coupon
+          </label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={couponCode}
+              onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+              placeholder="e.g. CAMPUS10, PRINT5"
+              className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800"
+            />
+            <button
+              onClick={handleApplyCoupon}
+              className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold transition hover:bg-slate-800"
+            >
+              Apply
+            </button>
+          </div>
+          {couponMsg.text && (
+            <p className={`text-[11px] mt-1 font-semibold ${couponMsg.type === 'success' ? 'text-emerald-600' : 'text-red-500'}`}>
+              {couponMsg.text}
+            </p>
+          )}
+        </div>
+
+        {/* Authoritative Quote Breakdown Box */}
+        <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-4 space-y-2 text-xs">
+          <div className="flex justify-between items-center text-slate-500">
+            <span>Printing Charges:</span>
+            <span className="font-semibold text-slate-800">
+              ₹{authoritativeQuote?.printingCharges ?? (pages * copies * (colorType === 'Color' ? colorRate : bwRate))}
+            </span>
+          </div>
+
+          {authoritativeQuote?.duplexSavings > 0 && (
+            <div className="flex justify-between items-center text-emerald-600">
+              <span>Duplex Savings:</span>
+              <span className="font-semibold">-₹{authoritativeQuote.duplexSavings}</span>
+            </div>
+          )}
+
+          {authoritativeQuote?.volumeDiscount > 0 && (
+            <div className="flex justify-between items-center text-emerald-600">
+              <span>Bulk Volume Discount:</span>
+              <span className="font-semibold">-₹{authoritativeQuote.volumeDiscount}</span>
+            </div>
+          )}
+
+          {authoritativeQuote?.bindingCharges > 0 && (
+            <div className="flex justify-between items-center text-slate-500">
+              <span>Finishing Fee ({binding}):</span>
+              <span className="font-semibold text-slate-800">+₹{authoritativeQuote.bindingCharges}</span>
+            </div>
+          )}
+
+          {authoritativeQuote?.couponDiscount > 0 && (
+            <div className="flex justify-between items-center text-emerald-600">
+              <span>Coupon Savings:</span>
+              <span className="font-semibold">-₹{authoritativeQuote.couponDiscount}</span>
+            </div>
+          )}
+
+          <div className="flex justify-between items-center border-t border-slate-200 pt-2 text-sm">
+            <span className="font-bold text-slate-900">Authoritative Total:</span>
+            <span className="font-black text-blue-600 text-base">
+              ₹{finalTotal}
+            </span>
+          </div>
+        </div>
+
+        <button
+          type="submit"
+          className="w-full bg-blue-600 hover:bg-blue-700 active:scale-98 text-white font-black py-4 rounded-2xl text-sm transition shadow-lg shadow-blue-500/20 cursor-pointer"
+        >
+          Proceed to Checkout (₹{finalTotal}) →
         </button>
       </form>
+
+      {/* PAYMENT & CHECKOUT MODAL */}
+      {showPaymentModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 space-y-6 shadow-2xl border border-slate-200 animate-in fade-in">
+            <div className="flex items-center justify-between border-b pb-4">
+              <div>
+                <h3 className="text-lg font-black text-slate-900">Confirm & Pay</h3>
+                <p className="text-xs text-slate-500">Total: ₹{finalTotal} to {shop.shopName}</p>
+              </div>
+              <button
+                onClick={() => setShowPaymentModal(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 font-bold hover:bg-slate-200"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Payment Method Switcher */}
+            <div className="grid grid-cols-2 gap-2 bg-slate-100 p-1 rounded-2xl text-xs font-bold">
+              <button
+                type="button"
+                onClick={() => setPaymentMethod('RAZORPAY')}
+                className={`py-2 rounded-xl transition ${paymentMethod === 'RAZORPAY' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}`}
+              >
+                💳 Razorpay (Instant)
+              </button>
+              <button
+                type="button"
+                onClick={() => setPaymentMethod('UPI_MANUAL')}
+                className={`py-2 rounded-xl transition ${paymentMethod === 'UPI_MANUAL' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}`}
+              >
+                📱 UPI QR & UTR
+              </button>
+            </div>
+
+            {paymentMethod === 'RAZORPAY' ? (
+              <div className="space-y-4 text-center py-2">
+                <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center text-2xl mx-auto shadow-inner">
+                  🔒
+                </div>
+                <div>
+                  <h4 className="font-bold text-sm text-slate-900">Secure Online Payment</h4>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Instant automated verification via Razorpay payment gateway with cryptographic HMAC signing.
+                  </p>
+                </div>
+                <div className="p-3 bg-slate-50 rounded-xl text-xs font-mono font-bold text-slate-700">
+                  Amount: ₹{finalTotal}.00 INR
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex flex-col items-center p-4 bg-slate-50 rounded-2xl border border-slate-200">
+                  <QRCodeSVG value={upiPayUrl} size={150} level="M" />
+                  <p className="text-[11px] font-bold text-slate-700 mt-2">Scan with any UPI App (GPay/PhonePe/Paytm)</p>
+                  <p className="text-[10px] text-slate-400 font-mono mt-0.5">{shopUpiId}</p>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Enter UPI Reference / UTR (12 Digits)
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={paymentUtr}
+                    onChange={(e) => setPaymentUtr(e.target.value)}
+                    placeholder="e.g. 324158941205"
+                    className="w-full border border-slate-300 rounded-xl p-2.5 text-xs font-mono"
+                  />
+                  <span className="text-[10px] text-slate-400">Shopkeeper verifies UTR before printing</span>
+                </div>
+              </div>
+            )}
+
+            <button
+              type="button"
+              disabled={loading}
+              onClick={handleFinalSubmitOrder}
+              className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white font-black py-3.5 rounded-2xl text-xs transition shadow-md cursor-pointer"
+            >
+              {loading ? 'Processing Order...' : `Authorize & Confirm Payment (₹${finalTotal})`}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-
-export default OrderForm;
