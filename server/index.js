@@ -38,10 +38,23 @@ app.use((req, res, next) => {
 });
 
 // Environment-specific CORS configuration
-const allowedOrigins = CLIENT_URL.split(',').map(v => v.trim());
+const rawOrigins = CLIENT_URL.split(',').map(v => v.trim().replace(/\/+$/, '')).filter(Boolean);
+
+const isOriginAllowed = (origin) => {
+  if (!origin) return true;
+  const cleanOrigin = origin.replace(/\/+$/, '');
+  if (rawOrigins.includes(cleanOrigin)) return true;
+  try {
+    const hostname = new URL(cleanOrigin).hostname;
+    if (hostname.endsWith('.vercel.app')) return true;
+  } catch {}
+  if (process.env.NODE_ENV !== 'production') return true;
+  return false;
+};
+
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin) || process.env.NODE_ENV !== 'production') {
+    if (isOriginAllowed(origin)) {
       callback(null, true);
     } else {
       callback(new Error('Blocked by CORS policy.'));
@@ -116,7 +129,17 @@ const canJoinOrder = async (user, orderId) => {
 };
 
 const io = new Server(server, {
-  cors: { origin: allowedOrigins, methods: ['GET', 'POST'], credentials: true },
+  cors: {
+    origin: (origin, callback) => {
+      if (isOriginAllowed(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Blocked by Socket.IO CORS.'));
+      }
+    },
+    methods: ['GET', 'POST'],
+    credentials: true
+  },
   transports: ['websocket', 'polling'],
   pingTimeout: 60000,
   pingInterval: 25000

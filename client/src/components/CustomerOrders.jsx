@@ -4,6 +4,8 @@ import { io } from 'socket.io-client';
 import LiveChat from './LiveChat';
 import QueueTrackerBadge from './QueueTrackerBadge';
 
+const SOCKET_URL = import.meta.env.VITE_API_URL || window.location.origin;
+
 export default function CustomerOrders({ user, onNavigateToShops }) {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -20,7 +22,7 @@ export default function CustomerOrders({ user, onNavigateToShops }) {
     const token = localStorage.getItem('token');
     if (!userId || !token) return;
 
-    const socket = io(window.location.origin, {
+    const socket = io(SOCKET_URL, {
       auth: { token },
       transports: ['websocket', 'polling']
     });
