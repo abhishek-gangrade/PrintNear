@@ -5,7 +5,15 @@ server/node_modules/
 
 # Environment variables
 .env
+.env.*
+*.env
 server/.env
+server/.env.*
+client/.env
+client/.env.*
+!.env.example
+!server/.env.example
+!client/.env.example
 
 # Uploaded documents and screenshots
 uploads/
